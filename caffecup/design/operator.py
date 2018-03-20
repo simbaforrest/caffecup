@@ -605,8 +605,9 @@ class FinalOp(EltOp, AggregationOp):
             phase=''
     ):
         shape = self.shape_of(predict)
+        ax = axis if axis>0 else len(shape)+axis
         assert(shape[0]==self.shape_of(label)[0])
-        assert(self.register_new_blob(loss_name, shape[0]))
+        assert(self.register_new_blob(loss_name, np.prod(shape[0:ax])))
 
         s=Template(
 '''layer {
@@ -635,8 +636,9 @@ class FinalOp(EltOp, AggregationOp):
             ignore_label=None
     ):
         shape = self.shape_of(predict)
+        ax = axis if axis>0 else len(shape)+axis
         assert(shape[0]==self.shape_of(label)[0])
-        assert(self.register_new_blob(accu_name, shape[0]))
+        assert(self.register_new_blob(accu_name, np.prod(shape[0:ax])))
 
         s=Template(
 '''layer {

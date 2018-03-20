@@ -116,7 +116,7 @@ class BaseBuilder(object):
         elif type(input_name)==list or type(input_name)==tuple:
             shapes = [self.shape_of(it) for it in input_name]
             s='layer {%s name: "silence" type: "Silence" }\n'%(
-                ' bottom: '.join(['"'+r+'"' for r in input_name]))
+                ' '.join(['bottom: "'+r+'"' for r in input_name]))
             self.fp.write(s)
         else:
             raise NotImplementedError()
