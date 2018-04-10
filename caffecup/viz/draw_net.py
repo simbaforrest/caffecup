@@ -196,7 +196,7 @@ def get_pydot_graph(caffe_net, rankdir, label_edges=True, phase=None, is_simplif
         if is_simplified and is_inplace:
             def inplace_blob_name():
                 if layer.type=='Dropout':
-                    return 'Dropout{}'.format(layer.dropout_param.dropout_ratio)
+                    return 'Dropout{:g}'.format(layer.dropout_param.dropout_ratio)
                 return layer.type
             bottom_blob = layer.bottom[0]
             blob_key = bottom_blob + '_blob'
