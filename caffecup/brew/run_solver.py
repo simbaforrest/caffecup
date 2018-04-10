@@ -36,7 +36,7 @@ def create_if_not_exist(path, name=''):
 
 def make_cmd(args):
     if args.srun:
-        srun = 'srun -p {} -X -D $PWD --gres gpu:1 '.format(args.cluster)
+        srun = 'srun{} -X -D $PWD --gres gpu:1 '.format(' -p '+args.cluster if args.cluster else '')
         if args.jobname=='':
             args.jobname = os.path.basename(args.sdict['snapshot_prefix']) #os.path.splitext(os.path.basename(args.solver))[0]
         if args.jobname!='none':
@@ -129,7 +129,7 @@ def get_args(argv):
                         help='path to solver')
     parser.add_argument('--caffe',type=str,default='../caffe/install/bin/caffe',
                         help='path to caffe executable')
-    parser.add_argument('--cluster',type=str,default='clusterNew',
+    parser.add_argument('--cluster',type=str,default='',
                         help='which cluster')
     parser.add_argument('--snapshot',type=str,default='',
                         help='if resume previous job, must provide snapshot file (*.solverstate)')
