@@ -79,7 +79,6 @@ def run(args):
         cmd = 'echo PYTHONPATH=$PYTHONPATH; for i in {1..20}; do echo $i; sleep 1; done;'
 
     my_env = os.environ.copy()
-    my_env['PYTHONPATH'] = ':'.join(args.additional_pythonpath)+':'+my_env['PYTHONPATH']
     if my_env.has_key('PYTHONPATH'):
         my_env['PYTHONPATH'] = ':'.join(args.additional_pythonpath)+':'+my_env['PYTHONPATH']
     else:
