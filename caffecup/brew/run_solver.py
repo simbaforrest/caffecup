@@ -80,6 +80,10 @@ def run(args):
 
     my_env = os.environ.copy()
     my_env['PYTHONPATH'] = ':'.join(args.additional_pythonpath)+':'+my_env['PYTHONPATH']
+    if my_env.has_key('PYTHONPATH'):
+        my_env['PYTHONPATH'] = ':'.join(args.additional_pythonpath)+':'+my_env['PYTHONPATH']
+    else:
+        my_env['PYTHONPATH'] = ':'.join(args.additional_pythonpath)
     THE_JOB = subprocess.Popen(cmd, shell=True, cwd=args.cwd, env=my_env)
 
     while True:
