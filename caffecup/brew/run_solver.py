@@ -35,10 +35,10 @@ def create_if_not_exist(path, name=''):
 
 
 def make_cmd(args):
+    if args.jobname=='':
+        args.jobname = os.path.basename(args.sdict['snapshot_prefix'])
     if args.srun:
         srun = 'srun{} -X -D $PWD --gres gpu:1 '.format(' -p '+args.cluster if args.cluster else '')
-        if args.jobname=='':
-            args.jobname = os.path.basename(args.sdict['snapshot_prefix']) #os.path.splitext(os.path.basename(args.solver))[0]
         if args.jobname!='none':
             srun += '--job-name='+args.jobname+' '
     else:
