@@ -305,7 +305,7 @@ class AggregationOp(BaseBuilder):
     ):
         shape = self.shape_of(input)
         assert(len(shape)==4)
-        shape[-2:]=1
+        shape[-2:]=[1,1]
         assert(self.register_new_blob(output, shape))
         if name=='':
             name='global_ave_pool[{:s}]'.format(input)
@@ -607,7 +607,7 @@ class FinalOp(EltOp, AggregationOp):
         shape = self.shape_of(predict)
         ax = axis if axis>0 else len(shape)+axis
         assert(shape[0]==self.shape_of(label)[0])
-        assert(self.register_new_blob(loss_name, np.prod(shape[0:ax])))
+        assert(self.register_new_blob(loss_name, []))
 
         s=Template(
 '''layer {
@@ -622,8 +622,7 @@ class FinalOp(EltOp, AggregationOp):
   softmax_param { axis: $axis }''' if axis!=1 else '',
        phase,
        ('ignore_label:'+str(ignore_label) if ignore_label is not None else '')))
-        s = re.sub('\n\s*\n', '\n', s.substitute(locals())) #remove blank lines
-        self.fp.write(s)
+        self.write_no_blankline(s.substitute(locals())) #remove blank lines
         return self
 
     def accuracy(
@@ -638,7 +637,7 @@ class FinalOp(EltOp, AggregationOp):
         shape = self.shape_of(predict)
         ax = axis if axis>0 else len(shape)+axis
         assert(shape[0]==self.shape_of(label)[0])
-        assert(self.register_new_blob(accu_name, np.prod(shape[0:ax])))
+        assert(self.register_new_blob(accu_name, []))
 
         s=Template(
 '''layer {
@@ -651,4 +650,39 @@ class FinalOp(EltOp, AggregationOp):
   accuracy_param { axis: %d }'''%(axis) if axis!=1 else '',
        ('\n  ignore_label:'+str(ignore_label) if ignore_label is not None else '')))
         self.fp.write(s.substitute(locals()))
+        return self
+
+    def euclidean_loss(
+            self,
+            predict,
+            target,
+            loss_name='loss',
+            name='euclidean_loss',
+            phase='',
+            loss_weight=1
+    ):
+        shape = self.shape_of(predict)
+        assert(shape==self.shape_of(target))
+        assert(self.register_new_blob(loss_name,shape=[1,]))
+
+        if loss_weight!=1:
+            loss_weight = 'loss_weight: {}'.format(loss_weight)
+        else:
+            loss_weight = ''
+
+        assert(phase.upper() in ['','TRAIN','TEST'])
+        if phase:
+            phase = 'include { phase: %s }' % phase.upper()
+
+        s=Template(
+'''layer {
+  name: "$name" type: "EuclideanLoss"
+  bottom: "$predict"
+  bottom: "$label"
+  top: "$loss_name"
+  %s
+  %s
+}
+''' % (loss_weight, phase))
+        self.write_no_blankline(s.substitute(locals()))
         return self

@@ -39,8 +39,11 @@ def filler_msra():
 
 ###########################################################
 
-def learning_param(lr_mult=1., decay_mult=1.):
-    return 'param {{ lr_mult: {}, decay_mult: {} }}'.format(lr_mult, decay_mult)
+def learning_param(lr_mult=1., decay_mult=1., name=''):
+    return 'param {{{} lr_mult: {}, decay_mult: {} }}'.format(
+        'name: "%s"'%name if name else '',
+        lr_mult, decay_mult
+    )
 
 ###########################################################
 
@@ -251,6 +254,7 @@ class Learable(BaseBuilder):
         else:
             bias_str='bias_term: false'
             filler_str ='weight_%s' % (weight_filler_str)
+            bias_param_str=''
 
         s=Template(
 '''layer {
@@ -280,7 +284,7 @@ class Learable(BaseBuilder):
             weight_param_str=learning_param(1.0, 1.0),
             bias_term=True,
             bias_filler_str=filler_constant(),
-            bias_param_str=learning_param(1.0, 0.0),
+            bias_param_str=learning_param(2.0, 0.0),
             name=''
     ):
         if name=='':

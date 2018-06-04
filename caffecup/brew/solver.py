@@ -16,7 +16,8 @@ from ..design.builder import safe_create_file
 import errno
 
 __all__ = [
-    'TrainTestSolver'
+    'TrainTestSolver',
+    'TrainSolver'
 ]
 
 def safe_create_folder(fpath):
@@ -132,6 +133,120 @@ max_iter: $max_iter
 test_iter: $test_iter
 test_interval: $test_interval
 test_initialization: $test_initialization
+
+#------
+base_lr: $base_lr
+$lr_policy_block
+momentum: $momentum
+momentum2: $momentum2
+weight_decay: $weight_decay
+
+#------
+average_loss: $average_loss
+display: $display
+#------
+snapshot_prefix: "$snapshot_prefix"
+snapshot: $snapshot_interval
+
+#------
+type: "$solver_type"
+solver_mode: $solver_mode
+#random_seed: 13598234
+'''
+        )
+
+        self.fp.write(s.substitute(locals()))
+        self.fp.close()
+
+
+class TrainSolver(object):
+
+    def __init__(self, fp, add_gen_log=True):
+        self.fp, self.filepath, self.filedir = safe_create_file(fp, add_gen_log)
+
+    def build(
+            self,
+            train_net,
+
+            n_train_data,
+            train_batch_size,
+
+            base_lr,
+            lr_policy='poly',
+
+            solver_type='SGD',
+            solver_mode='GPU',
+
+            iter_size=1,
+            n_epoch=100,
+            momentum=0.9,
+            momentum2=0.999, #for Adam
+            weight_decay=1e-5,
+            average_loss=100,
+            display=1,
+            snapshot_interval=-1,   #default int(0.01*max_iter)
+            snapshot_folder='snapshots',
+            snapshot_prefix='',     #default basename(net)_lr_wd
+            lr_stepsize=-1,         #default int(0.5*max_iter)
+            lr_gamma=0.1,
+            lr_multistepsize=None,  #default [int(0.5*max_iter), int(0.75*max_iter)]
+    ):
+
+        max_iter = n_train_data*n_epoch/(train_batch_size*iter_size)
+        if snapshot_interval<0:
+            snapshot_interval = int(0.01*max_iter)
+        if not snapshot_prefix:
+            snapshot_prefix = os.path.splitext(os.path.basename(train_net))[0]
+            if snapshot_prefix.startswith('train_'):
+                snapshot_prefix = snapshot_prefix.replace('train_','',1)
+            lr_exponent = int(np.floor(np.log10(np.abs(base_lr))))
+            lr_significand = int(np.power(10, -lr_exponent)*base_lr)
+            snapshot_prefix+= '_{:s}{:s}l{:d}e{:d}'.format(solver_type[0].upper(), lr_policy[0],
+                                                           lr_significand, lr_exponent)
+            if weight_decay!=1e-5:
+                snapshot_prefix+='_w{:1.0e}'.format(weight_decay)
+            snapshot_prefix=os.path.join(snapshot_folder,snapshot_prefix)
+        safe_create_folder(os.path.dirname(snapshot_prefix))
+
+        if lr_policy=='poly':
+            lr_policy_block = \
+'''
+lr_policy: "poly"
+power: 1
+'''
+        elif lr_policy=='step':
+            if lr_stepsize<0:
+                lr_stepsize=int(0.5*max_iter)
+            lr_policy_block = \
+'''
+lr_policy: "step"
+stepsize: {:d}
+gamma:    {:f}
+'''.format(lr_stepsize, lr_gamma)
+        elif lr_policy=='multistep':
+            if lr_multistepsize is None:
+                lr_multistepsize=[int(0.5*max_iter), int(0.75*max_iter)]
+            lr_multistepsize_str = '\n'.join(['stepvalue: {:d}'.format(r) for r in lr_multistepsize])
+            lr_policy_block = \
+'''
+lr_policy: "multistep"
+{}
+'''.format(lr_multistepsize_str)
+        elif lr_policy=='fixed':
+            lr_policy_block = \
+'''
+lr_policy: "fixed"
+'''
+        else:
+            raise NotImplementedError('TODO: '+lr_policy)
+
+        s=Template(
+'''
+net: "$train_net"
+#------
+# n_train_data*n_epoch/(train_batch_size*iter_size) = $n_train_data*$n_epoch/($train_batch_size*$iter_size) = $max_iter
+iter_size: $iter_size
+max_iter: $max_iter
 
 #------
 base_lr: $base_lr

@@ -79,6 +79,7 @@ class BaseBuilder(object):
 
         self.fp, self.filepath, self.filedir = safe_create_file(fp, add_gen_log)
         self.blob2shape = OrderedDict()
+        self.blob2memcnt = OrderedDict()
 
     def done(self, draw_net=None, phase='TRAIN', direction='TB'):
         self.fp.close()
@@ -149,7 +150,7 @@ class BaseBuilder(object):
                 assert(infer_cnt==0)
                 infer_cnt += 1
                 shape_out[ith] = np.prod(shape_in)/shape_out_cnt
-        assert(self.register_new_blob(output, shape_out))
+        assert(self.register_new_blob(output, shape_out, memcnt=0)) #reshape does not re-allocate blob memory
 
         if name=='':
             name = '{}_reshape'.format(input)
@@ -189,6 +190,104 @@ $bottoms_str
 ''')
         self.fp.write(s.substitute(locals()))
         return self
+
+    def hdf5data(
+            self,
+            outputs,
+            shapes,
+            source,
+            batch_size,
+            phase,
+            name='',
+            shuffle=False,
+            check_shape=False
+    ):
+        if isinstance(outputs, str):
+            outputs = [outputs]
+            shapes = [shapes]
+        assert(isinstance(outputs, list))
+        assert(isinstance(outputs[0], str))
+        assert(isinstance(shapes, list))
+        assert(isinstance(shapes[0], list))
+        assert(len(outputs)==len(shapes))
+        assert(phase.upper() in ['TRAIN', 'TEST', ''])
+
+        if check_shape:
+            for o in outputs:
+                self.shape_of(o)
+        else:
+            for o,s in zip(outputs, shapes):
+                self.register_new_blob(o, s)
+
+        if name=='':
+            name ='{}_'.format(phase) if phase else ''
+            name+='hdf5data('+','.join(outputs)+')'
+
+        output_str = '\n'.join(['  top:"{}"'.format(it) for it in outputs])
+        if param_str:
+            param_str = 'param_str: "{}"'.format(param_str.replace('\"','\''))
+
+        phase_str = ''
+        if phase:
+            phase_str = 'include { phase: %s }' % (phase.upper())
+
+        shuffle_str = ''
+        if shuffle:
+            if phase.upper()=='TRAIN':
+                shuffle_str = 'shuffle: true'
+            else:
+                shuffle_str = '#shuffle: true #no need to shuffle in testing'
+
+        s=Template(
+'''layer {
+  name: "$name" type: "HDF5Data"
+$output_str
+  hdf5_data_param {
+    source: "$source"
+    batch_size: "$batch_size" $shuffle_str
+  }
+  $phase_str
+}
+'''
+        )
+        return self.write_no_blankline(s.substitute(locals()))
+
+    def input(
+            self,
+            outputs,
+            shapes,
+            check_shape=False
+    ):
+        if isinstance(outputs, str):
+            outputs = [outputs]
+            shapes = [shapes]
+        assert(isinstance(outputs, list))
+        assert(isinstance(outputs[0], str))
+        assert(isinstance(shapes, list))
+        assert(isinstance(shapes[0], list))
+        assert(len(outputs)==len(shapes))
+
+        if check_shape:
+            for o in outputs:
+                self.shape_of(o)
+        else:
+            for o,s in zip(outputs, shapes):
+                self.register_new_blob(o, s)
+
+        output_str = '\n'.join(['  top:"{}"'.format(it) for it in outputs])
+        shape_str  = '\n'.join(['    shape {%s}' % (', '.join(['dim:{}'.format(n) for n in it])) for it in shapes])
+
+        s=Template(
+'''layer {
+  type: "Input"
+$output_str
+  input_param {
+$shape_str
+  }
+}
+'''
+        )
+        return self.write_no_blankline(s.substitute(locals()))
 
     def pydata(
             self,
@@ -249,12 +348,15 @@ $output_str
         self.fp.write(re.sub('\n\s*\n', '\n', s)) #remove blank lines before write
         return self
 
-    def register_new_blob(self, name, shape):
+    def register_new_blob(self, name, shape, memcnt=None):
         '''return False if blob already exist'''
         if self.blob2shape.has_key(name):
             return False
         else:
-            self.blob2shape[name]=shape
+            self.blob2shape[name]=list(shape)
+            if memcnt is None:
+                memcnt = np.prod(shape) if all([ isinstance(it, int) for it in shape ]) else 'unknown'
+            self.blob2memcnt[name]=memcnt
             return True
 
     def shape_of(self, blob):
@@ -265,8 +367,18 @@ $output_str
 
     def comment_blob_shape(self):
         self.comment_bar('blob shapes')
+        all_mem = 0
         for name, shape in self.blob2shape.items():
-            self.comment('{}: {}'.format(name, str(shape)))
+            memcnt = self.blob2memcnt[name]
+            if isinstance(memcnt, str):
+                memstr = 'unknown'
+            else:
+                mem = memcnt*4./1024/1024 # #float32 => MB
+                memstr = '(= {} MB)'.format(mem)
+                all_mem += mem
+            self.comment('{}: {} {}'.format(name, str(shape), memstr))
+        self.space()
+        self.comment('minimum memory requirement: {:.1f}x2={:.1f} MB'.format(all_mem, all_mem*2))
 
     def print_blob_shape(self):
         print('blob shapes')
