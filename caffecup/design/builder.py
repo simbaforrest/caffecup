@@ -191,6 +191,44 @@ $bottoms_str
         self.fp.write(s.substitute(locals()))
         return self
 
+    def slice(
+            self,
+            input,
+            outputs,
+            slice_points,
+            axis=1,
+            name=''
+    ):
+        assert(isinstance(outputs,list))
+        assert(isinstance(slice_points,list))
+        assert(len(outputs)==len(slice_points)+1)
+        shape = self.shape_of(input)
+        ax=(len(shape)+axis) if axis<0 else axis
+        assert(all([0<=slice_points[it-1]<slice_points[it] for it in range(1,len(slice_points))]))
+        slice_prev=0
+        old_dim = shape[ax]
+        for it in range(len(slice_points)):
+            shape[ax]=slice_points[it]-slice_prev
+            slice_prev=slice_points[it]
+            assert(self.register_new_blob(outputs[it],shape,memcnt=0))
+        shape[ax]=old_dim-slice_prev
+        assert(self.register_new_blob(outputs[-1],shape,memcnt=0))
+        if name=='':
+            name = input+'->'+'|'.join(outputs)
+
+        tops_str='\n'.join(['  top: "{}"'.format(r) for r in outputs])
+        slice_str=' '.join(['slice_point:{}'.format(r) for r in slice_points])
+        s=Template(
+'''layer {
+  name: "$name" type: "Slice"
+  bottom: "$input"
+$tops_str
+  slice_param { axis: $axis $slice_str }
+}
+''')
+        self.fp.write(s.substitute(locals()))
+        return self
+
     def hdf5data(
             self,
             outputs,
